@@ -7,7 +7,7 @@
 # will load this file
 #3. if in json format, use json.loads(data) to convert to dict
 # walk through the dict by d.da['x'] or d.j['x']
-#4. or dget(j, '/messages/0/content/0/text')
+#4. or dget('/messages/0/content/0/text')
 
 import re
 import json
