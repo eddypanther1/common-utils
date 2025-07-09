@@ -7,7 +7,7 @@
 # will load this file
 #3. if in json format, use json.loads(data) to convert to dict
 # walk through the dict by d.da['x'] or d.j['x']
-#4. or dget('/messages/0/content/0/text')
+#4. or dget(da, '/messages/0/content/0/text')
 
 import re
 import json
@@ -116,7 +116,7 @@ da = {
     'cod': 200
 }
 
-
+br = {'inputTextTokenCount': 11, 'results': [{'tokenCount': 20, 'outputText': '\nYou can ask questions, get answers, and get help and support for Amazon Bedrock.', 'completionReason': 'FINISH'}]}
     
 # text = dget(j, '/messages/0/content/0/text')
 # print(text)

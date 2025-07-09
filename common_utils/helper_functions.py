@@ -2,11 +2,20 @@
 # from helper_functions import print_llm_response, get_llm_response
 # from helper_functions get_completion, get_completion_from_messages
 # from helper_functions import debugprint
+# from helper_functions import extract_numbers, extract_prefix, extract_suffix
+# from helper_functions import roman_to_int, int_to_roman, kanji_to_int, int_to_kanji, convert_double_byte_to_single_byte
 
 import os
 import requests
 import json
 
+try:
+    import kanjize
+    KANJIZE_AVAILABLE = True
+except ImportError:
+    KANJIZE_AVAILABLE = False
+
+import jaconv  # Required: pip install jaconv
 
 # needs LLAMA_API_KEY environment variable
 
@@ -22,12 +31,11 @@ if not API_KEY:
     raise ValueError("LLAMA_API_KEY environment variable not set.")
 
 
-
-
 #debugprint(str)
 import inspect
 import re # For parsing the argument string
 import sys # Not strictly needed for print, but good for potential stdout interaction
+import roman
 
 
 def debugprint(value):
@@ -59,7 +67,7 @@ def debugprint(value):
         # The request "print a number in addition to a string" means the value
         # itself can be a number or a string, which is handled by printing 'value'.
         # Using !r for repr() to show quotes for strings, etc., which is good for debugging.
-        print(f"{arg_text}): {value!r}")
+        print(f"{arg_text}: {value!r}")
     except Exception as e:
         # Fallback in case of any error during inspection or printing
         print(f"debugprint_error_value: {value!r} (Error during inspection: {e})")
@@ -68,7 +76,106 @@ def debugprint(value):
         if call_line_info:
             del call_line_info
 
+def convert_double_byte_to_single_byte(text):
+    """
+    Converts full-width Japanese Western digits and ASCII characters to their half-width counterparts.
+    Also converts double-byte dashes to single-byte dashes.
+    This helps normalize input strings for easier parsing of keywords and numbers.
+    """
+    text = jaconv.z2h(text, digit=True, ascii=True)  # Convert digits and ASCII characters
+    text = text.replace('−', '-')  # Convert double-byte dash to single-byte dash
+    return text
 
+def extract_numbers(text):
+    """
+    Extracts all integers as string in a list from a given text string.
+    """
+    return (re.findall(r'-?\d+', text))
+
+def extract_prefix(text, pattern):
+    """ 
+        given text "((1))" and pattern "1", returns prefix "((
+    """
+    # Escape special regex characters in the pattern to treat it literally
+    escaped_pattern = re.escape(pattern)
+    regex = rf'^(.*?){escaped_pattern}'
+    match = re.match(regex, text)
+    
+    if match:
+        prefix = match.group(1)  # Group 1 is the prefix
+        return prefix
+    return None
+
+def extract_suffix(text, pattern):
+    """
+        Extract the suffix after the pattern up to the whitespace or 'to'.
+        given text "((1)) to ((5))" and pattern "1", returns sufffix "))
+    """
+    escaped_pattern = re.escape(pattern)
+    match = re.search(rf'{escaped_pattern}(\S*)', text)
+    if match:
+        return match.group(1).split("to")[0]  
+        # group(1) is the suffix
+        # split("to")[0] handles the case in Japanese 1.to
+    return None # Pattern not found
+
+# --- Roman Numeral Conversion ---
+def roman_to_int(s):
+    """Converts a Roman numeral string to an integer."""
+    roman_map = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+    
+    # Validate input: ensure only valid Roman numeral characters
+    if not s or not all(c in roman_map for c in s.upper()):
+        raise ValueError("Invalid Roman numeral")
+    
+    int_val = 0
+    prev_val = 0
+    
+    # Iterate from right to left to handle subtractive cases (e.g., IV, IX)
+    for char in reversed(s.upper()):
+        current_val = roman_map[char]
+        if current_val < prev_val:
+            int_val -= current_val
+        else:
+            int_val += current_val
+        prev_val = current_val
+    
+    # Validate the Roman numeral by converting back
+    if int_to_roman(int_val).upper() != s.upper():
+        raise ValueError("Invalid Roman numeral")
+    
+    return int_val
+    
+def int_to_roman(num):
+    """Converts an integer to a Roman numeral for validation."""
+    if not 1 <= num <= 3999:
+        return ""
+    val = [
+        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+        (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")
+    ]
+    result = ""
+    for (n, symbol) in val:
+        while num >= n:
+            result += symbol
+            num -= n
+    return result
+
+
+
+# --- Kanji Numeral Conversion (using kanjize if available) ---
+
+
+def kanji_to_int(kanji_str):
+    if KANJIZE_AVAILABLE:
+        return kanjize.kanji2number(kanji_str)
+    raise ImportError("Kanjize library not installed. Cannot convert complex Kanji numerals.")
+
+def int_to_kanji(num):
+    if KANJIZE_AVAILABLE:
+        return kanjize.number2kanji(num)
+    raise ImportError("Kanjize library not installed. Cannot convert to complex Kanji numerals.")
 
 
 def print_json_response(prompt):
@@ -190,7 +297,7 @@ def post_request(prompt, url_request, model, api_key):
     return response
 
 
-debugprint((MODEL3))
+# debugprint((MODEL3))
 
 
 #Tested functions
